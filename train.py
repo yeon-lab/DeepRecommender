@@ -1,5 +1,6 @@
 import argparse
 import model.metric as module_metric
+import model.loss as module_loss
 from model.DeepRec import Rec_Model
 from trainer.trainer import Trainer
 from utils import Load_split_dataset
@@ -26,6 +27,7 @@ def main(config):
 
     # get function handles of metrics
     metrics = [getattr(module_metric, met) for met in config['metrics']]
+    criterion = getattr(module_loss, config['loss'])
 
     # build optimizer
     trainable_params = filter(lambda p: p.requires_grad, model.parameters())
@@ -33,6 +35,7 @@ def main(config):
 
     trainer = Trainer(model, 
                       optimizer,
+                      criterion,
                       metrics,
                       config,
                       train_set,
