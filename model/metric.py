@@ -1,12 +1,9 @@
-import torch
-from sklearn.metrics import confusion_matrix, f1_score, accuracy_score
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+import numpy as np
 
+def RMSE(target, output):
+    return np.sqrt(mean_squared_error(target, output))
 
-def accuracy(output, target):
-    return accuracy_score(target, output)
+def MAE(target, output):
+    return mean_absolute_error(target, output)
 
-def confusion(output, target):
-    return confusion_matrix(target,output )
-
-def f1(output, target):
-    return f1_score(target,output, average='macro')
