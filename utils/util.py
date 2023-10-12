@@ -7,275 +7,122 @@ import os
 import numpy as np
 from glob import glob
 import math
-
-import torch
-import torch.nn as nn
+from utils.base import load_data, transform_category
+from sklearn.preprocessing import StandardScaler,MinMaxScaler
 
 SEED = 123
 np.random.seed(SEED)
 
-
-def load_shhs_folds(np_data_path, n_folds, idx):
-    np.random.seed(SEED)
-
-    files = sorted(glob(os.path.join(np_data_path, "*.npz")))
-    npzfiles = np.asarray(files , dtype='<U200')
-    np.random.shuffle(npzfiles)
-    splited_files = np.array_split(npzfiles, n_folds)
-    folds_data = {}
-    for fold_id in range(n_folds):
-        test_file = splited_files[fold_id]
-        if fold_id+1<n_folds:
-            valid_file = splited_files[fold_id+1]
-        else:
-            valid_file = splited_files[0]        
-
-        train_file = list(set(npzfiles) - set(valid_file)- set(test_file))
-        folds_data[fold_id] = {'train': train_file, 
-                               'valid': valid_file, 
-                               'test': test_file}
-
-    train = folds_data[idx]['train']
-    valid = folds_data[idx]['valid']
-    test = folds_data[idx]['test']
-    check = np.concatenate((train,valid,test))
-    print('n data:',len(np.unique(check)), 'n train:', len(train), 'n valid:', len(valid),'n test:', len(test))
-
-    return folds_data
-
-
-def load_edf_folds(np_data_path, n_folds, idx):
-    np.random.seed(SEED)
+def preprocessing(path, config):
+    # rating info
+    ratings = load_data(os.path.join(path,'u.data'),'\t')
+    ratings = pd.DataFrame(ratings, columns=['UserID','MovieID','Rating','timestamp']).dropna(subset=('UserID','MovieID','Rating')).iloc[:,:-1]
+    ratings = ratings[ratings['MovieID']!=267]
     
-    files = sorted(glob(os.path.join(np_data_path, "*.npz")))
+    # user info
+    # categories
+    users     = load_data(os.path.join(path,'u.user'),'|')
+    users     = pd.DataFrame(users, columns=['UserID','Age','Gender','Occupation','Zip-code']).dropna()
+    u_categories = users.copy()
+    u_categories = u_categories.iloc[:,1:]
+    u_categories, user_count= transform_category(u_categories)
+    u_categories['UserID'] = users['UserID']
 
-    files_dict = dict()
-    for i in files:
-        file_name = os.path.split(i)[-1] 
-        file_num = file_name[3:5]
-        if file_num not in files_dict:
-            files_dict[file_num] = [i]
-        else:
-            files_dict[file_num].append(i)
+    # item info
+    movies = load_data(os.path.join('u.item'),'|')
+    items = []  
+    for movie in movies[:-1]:
+        items.append([movie[0],
+           movie[1][:len(movie[1])-6],movie[2][-4:],
+           movie[5:]
+            ])
+     
+    items = pd.DataFrame(items, columns=['MovieID','Title','year','Genres']).dropna()
     
-    files_pairs = []
-    for i, key in enumerate(files_dict):
-        files_pairs.append(files_dict[key])
-    np.random.shuffle(files_pairs)
-    splited_files = np.array_split(files_pairs, n_folds)
-
-    folds_data = {}
-    for fold_id in range(n_folds):
-        test_file = splited_files[fold_id].tolist()
-        if '20' in np_data_path:
-            n_valid = 4        
-        else:
-            n_valid = 1
+    # category   
+    it_categories = items.copy()
+    it_categories = it_categories[['year']]
+    it_categories, item_count = transform_category(it_categories)
+    it_categories['MovieID'] = items['MovieID']
     
-        if fold_id+n_valid < n_folds:
-            valid_list = splited_files[fold_id+1:fold_id+1+n_valid]
-            train_1 = splited_files[:fold_id]
-            train_2 = splited_files[fold_id+1+n_valid:]
-            train_list = train_1+train_2
-    
-        else: 
-            valid_1 = splited_files[fold_id+1:]
-            valid_2 = splited_files[:n_valid-len(valid_1)]
-            valid_list = valid_1+valid_2
-            train_list = splited_files[n_valid-len(valid_1):fold_id]
+    # continuous_genre
+    genres=[]
+    for gen in items['Genres']:         
+        genres.append(list(map(int, gen)))
         
-        valid_file = [sublist.tolist() for sublist in valid_list]
-        train_file = [sublist.tolist() for sublist in train_list]  
-        valid_file = sum(valid_file,[])
-        train_file = sum(train_file,[])
+    genres = pd.DataFrame(np.array(genres))
+    genres['MovieID'] = items['MovieID']       
+    
+    # continuous_title
+    titles = items.copy()
+    titles = titles['Title']
+    
+    txt = BERT(list(titles),batch_size = 32)
+
+    user_ctg, item_ctg, item_gen, item_txt = sample(ratings, u_categories,it_categories,genres, txt)
+    train_loader, test_loader, valid_loader, y_scaler = data_split(user_ctg, item_ctg, item_gen, item_txt, ratings['Rating'], 
+                                                                   config['data_loader']['args']['batch_size'])
+
+    config['hyper_params']['user_count'] = user_count
+    config['hyper_params']['item_count'] = item_count
+    config['hyper_params']['genr_nfeat'] = len(item_gen[0])
+    config['hyper_params']['txt_nfeat'] = len(item_txt[0])
+    return train_loader, valid_loader, test_loader, y_scaler, config
+
+def sample(data,user,item,genre,txt):
+    user_,item_,genre_,txt_ = [],[],[],[]    
+    for i in range(len(data)):
+        UserID = data.iloc[i,:]['UserID']
+        MovieID = data.iloc[i,:]['MovieID']
+        user_.append(list(user[user['UserID']== UserID].drop(['UserID'], axis='columns').iloc[0,:]))
+        item_.append(list(item[item['MovieID'] == MovieID].drop(['MovieID'], axis='columns').iloc[0,:]))
+        genre_.append(list(genre[genre['MovieID'] == MovieID].drop(['MovieID'], axis='columns').iloc[0,:]))
+        txt_.append(list(txt[txt['MovieID'] == MovieID].drop(['MovieID'], axis='columns').iloc[0,:]))
             
-        folds_data[fold_id] = {'train': train_file, 
-                               'valid': valid_file, 
-                               'test': test_file}
+    user_   = np.array(user_).reshape(len(data),-1)
+    item_   = np.array(item_).reshape(len(data),-1)
+    genre_  = np.array(genre_).reshape(len(data),-1)
+    txt_    = np.array(txt_).reshape(len(data),-1)            
     
-    train = folds_data[idx]['train']
-    train = sum(train,[])
-    valid = folds_data[idx]['valid']
-    valid = sum(valid,[])
-    test = folds_data[idx]['test']
-    test = sum(test,[])
+    return user_, item_, genre_, txt_
+
+
+
+def data_split(user_ctg, item_ctg, item_gen, item_txt, label, batch_size):    
+    indices = np.random.permutation(np.arange(len(ratings)))
+    train_idx = indices[:81000]
+    test_idx = indices[81000:91000]
+    valid_idx = indices[91000:]
     
-    all_ = np.concatenate((train,valid,test))
-    print('\n n data:',len(np.unique(all_)), 'sum:', len(train)+len(valid)+len(test), 
-          'n train:', len(train), 'n valid:', len(valid),'n test:', len(test))
-
-    return folds_data
-
-
-
-def load_folds_semi_spervised(n_folds, idx):
-    np.random.seed(SEED)
+    label    = np.array(label)
+    item_txt = np.array(item_txt)
     
-    edf_20_files = sorted(glob(os.path.join('data_npz/edf_20_fpzcz', "*.npz")))
-    edf_78_files = sorted(glob(os.path.join('data_npz/edf_78_fpzcz', "*.npz")))
+    y_scaler = MinMaxScaler()
+    y_scaler.fit(np.array(label[train_idx].reshape(-1,1)))
+    label   = y_scaler.transform(label.reshape(-1,1))  
     
-    n_valid = 4
+    txt_scaler = StandardScaler()
+    txt_scaler.fit(np.array(item_txt[train_idx]))
+    item_txt = standard.transform(item_txt)
 
-    files_dict = dict()
-    for i in edf_20_files:
-        file_name = os.path.split(i)[-1] 
-        file_num = file_name[3:5]
-        if file_num not in files_dict:
-            files_dict[file_num] = [i]
-        else:
-            files_dict[file_num].append(i)
+    user_ctg    = torch.LongTensor(np.array(user_ctg))
+    item_ctg    = torch.LongTensor(np.array(item_ctg))
+    item_gen    = torch.FloatTensor(np.array(item_gen))
+    item_txt    = torch.FloatTensor(np.array(item_txt))
+    label       = torch.FloatTensor(np.array(label))
+
+    train = TensorDataset(user_ctg[train_idx], item_ctg[train_idx], 
+                          item_gen[train_idx],   item_txt[train_idx], label[train_idx])
+    test  = TensorDataset(user_ctg[test_idx], item_ctg[test_idx],
+                          item_gen[test_idx],   item_txt[test_idx], label[test_idx])        
+    valid  = TensorDataset(user_ctg[valid_idx], item_ctg[valid_idx],
+                          item_gen[valid_idx],   item_txt[valid_idx], label[valid_idx])       
+
+    train_load  = torch.utils.data.DataLoader(dataset= train,batch_size=batch_size,shuffle=False,drop_last=True) 
+    test_load   = torch.utils.data.DataLoader(dataset= test,batch_size=batch_size,shuffle=False,drop_last=True) 
+    valid_load   = torch.utils.data.DataLoader(dataset= valid,batch_size=batch_size,shuffle=False,drop_last=True) 
     
-    files_pairs = []
-    for i, key in enumerate(files_dict):
-        files_pairs.append(files_dict[key])
-    np.random.shuffle(files_pairs)
-    splited_files = np.array_split(files_pairs, n_folds)
-    
-    
-    train_edf_78 = list()        
-    for i in edf_78_files:
-        file_name = os.path.split(i)[-1] 
-        file_num = file_name[3:5]
-        if file_num not in files_dict:
-            train_edf_78.append(i)
-
-    folds_data = {}
-    for fold_id in range(n_folds):
-        test_file = sum(splited_files[fold_id].tolist(),[])
-        
-        if fold_id+n_valid < n_folds:   
-            valid_list = splited_files[fold_id+1:fold_id+1+n_valid]
-        else: 
-            valid_1 = splited_files[fold_id+1:]
-            valid_2 = splited_files[:n_valid-len(valid_1)]
-            valid_list = valid_1+valid_2
-        
-        valid_file = [sum(sublist.tolist(), []) for sublist in valid_list]
-        valid_file = sum(valid_file,[])
-        
-        train_edf_20 = list(set(edf_20_files) - set(valid_file) -set(test_file))
-                
-        folds_data[fold_id] = {'train_sup': train_edf_20, 
-                               'train_unsup': train_edf_78,
-                               'valid': valid_file, 
-                               'test': test_file}
-    
-    train_sup = folds_data[idx]['train_sup']
-    train_unsup = folds_data[idx]['train_unsup']
-    valid = folds_data[idx]['valid']
-    test = folds_data[idx]['test']
-
-    all_ = np.concatenate((train_sup,train_unsup,valid,test))
-    print('\n n data:',len(np.unique(all_)), 'sum:', len(train_sup)+len(train_unsup)+len(valid)+len(test), 
-          'n_train_sup:', len(train_sup), ' n_train_unsup:', len(train_unsup), ' n valid:', len(valid),' n test:', len(test))
-
-    return folds_data
-
-
-def load_folds_semi_spervised_reduced(n_folds, idx, unsupervised_domain_n=3):
-    np.random.seed(SEED)
-    
-    edf_20_files = sorted(glob(os.path.join('data_npz/edf_20_fpzcz', "*.npz")))
-    edf_78_files = sorted(glob(os.path.join('data_npz/edf_78_fpzcz', "*.npz")))
-    
-    n_valid = 4
-
-    files_dict = dict()
-    for i in edf_20_files:
-        file_name = os.path.split(i)[-1] 
-        file_num = file_name[3:5]
-        if file_num not in files_dict:
-            files_dict[file_num] = [i]
-        else:
-            files_dict[file_num].append(i)
-    
-    files_pairs = []
-    for i, key in enumerate(files_dict):
-        files_pairs.append(files_dict[key])
-    np.random.shuffle(files_pairs)
-    splited_files = np.array_split(files_pairs, n_folds)
-    
-    edf_78_files_dict = dict()
-    for i in edf_78_files:
-        file_name = os.path.split(i)[-1] 
-        file_num = file_name[3:5]
-        if file_num not in files_dict:
-            if file_num not in edf_78_files_dict:
-                edf_78_files_dict[file_num] = [i]
-            else:
-                edf_78_files_dict[file_num].append(i)
-
-    edf_78_files_pairs = []
-    for i, key in enumerate(edf_78_files_dict):
-        edf_78_files_pairs.append(edf_78_files_dict[key])
-        if i == unsupervised_domain_n-1:
-            break
-    train_edf_78 = sum(edf_78_files_pairs, [])
-
-    folds_data = {}
-    for fold_id in range(n_folds):
-        test_file = sum(splited_files[fold_id].tolist(),[])
-        
-        if fold_id+n_valid < n_folds:   
-            valid_list = splited_files[fold_id+1:fold_id+1+n_valid]
-        else: 
-            valid_1 = splited_files[fold_id+1:]
-            valid_2 = splited_files[:n_valid-len(valid_1)]
-            valid_list = valid_1+valid_2
-        
-        valid_file = [sum(sublist.tolist(), []) for sublist in valid_list]
-        valid_file = sum(valid_file,[])
-        
-        train_edf_20 = list(set(edf_20_files) - set(valid_file) -set(test_file))
-                
-        folds_data[fold_id] = {'train_sup': train_edf_20, 
-                               'train_unsup': train_edf_78,
-                               'valid': valid_file, 
-                               'test': test_file}
-    
-    train_sup = folds_data[idx]['train_sup']
-    train_unsup = folds_data[idx]['train_unsup']
-    valid = folds_data[idx]['valid']
-    test = folds_data[idx]['test']
-
-    all_ = np.concatenate((train_sup,train_unsup,valid,test))
-    print('\n n data:',len(np.unique(all_)), 'sum:', len(train_sup)+len(train_unsup)+len(valid)+len(test), 
-          'n_train_sup:', len(train_sup), ' n_train_unsup:', len(train_unsup), ' n valid:', len(valid),' n test:', len(test))
-
-    return folds_data
-
-
-
-torch.manual_seed(SEED)
-torch.backends.cudnn.deterministic = False
-torch.backends.cudnn.benchmark = False
-def weights_init_normal(m):
-    if type(m) == nn.Conv2d:
-        torch.nn.init.normal_(m.weight.data, 0.0, 0.02)
-    elif type(m) == nn.Conv1d:
-        torch.nn.init.normal_(m.weight.data, 0.0, 0.02)
-    elif type(m) == nn.BatchNorm1d:
-        torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
-        torch.nn.init.constant_(m.bias.data, 0.0)
-        
-        
-def calc_class_weight(labels_count):
-    total = np.sum(labels_count)
-    class_weight = dict()
-    num_classes = len(labels_count)
-
-    factor = 1 / num_classes
-    mu = [factor * 1.5, factor * 2, factor * 1.5, factor, factor * 1.5] # THESE CONFIGS ARE FOR SLEEP-EDF-20 ONLY
-
-    for key in range(num_classes):
-        score = math.log(mu[key] * total / float(labels_count[key]))
-        class_weight[key] = score if score > 1.0 else 1.0
-        class_weight[key] = round(class_weight[key] * mu[key], 2)
-
-    class_weight = [class_weight[i] for i in range(num_classes)]
-
-    return class_weight
-
+    return train_load, test_load, valid_load, y_scaler
 
 def ensure_dir(dirname):
     dirname = Path(dirname)
