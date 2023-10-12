@@ -4,16 +4,16 @@ from torch.nn import functional as F
 from model.base import CrossConvolution, Emb, _Net
 
 class Rec_Model(nn.Module):
-    def __init__(self,user_count,item_count,genr_nfeat,txt_nfeat,params):
-        super(Model, self).__init__() 
+    def __init__(self, params):
+        super(Rec_Model, self).__init__() 
         
         self.user_latent = len(user_count)*params['emb']
-        self.item_latent = (len(item_emb)+2)*params['emb']
+        self.item_latent = (len(item_count)+2)*params['emb']
         
-        self.UserEmb = Emb(user_count, params['emb'])
-        self.ItemEmb = Emb(item_count, params['emb'])
-        self.GenEmb  = _Net(genr_nfeat, params['emb'])
-        self.TxtEmb  = _Net(txt_nfeat, params['emb'])
+        self.UserEmb = Emb(params['user_count'], params['emb'])
+        self.ItemEmb = Emb(params['item_count'], params['emb'])
+        self.GenEmb  = _Net(params['genr_nfeat'], params['emb'])
+        self.TxtEmb  = _Net(params['txt_nfeat'], params['emb'])
         
         layers = [CrossConvolution(1, params['nhid'][0])]
             
