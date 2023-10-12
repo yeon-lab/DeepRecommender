@@ -15,7 +15,6 @@ torch.backends.cudnn.benchmark = False
 
 def main(config):
     # load datasets
-    config, train_set, valid_set, test_set = Load_split_dataset(config)
         
     # build model architecture, initialize weights, then print to console    
     model = Rec_Model(config['hyper_params'])
@@ -57,6 +56,10 @@ if __name__ == '__main__':
     params = args.parse_args()
     
     config = ConfigParser.from_args(args)
-    config['data_loader']['data'] = params.data
+    config, train_set, valid_set, test_set = Load_split_dataset(config)
+    config['hyper_params']['user_count'] = user_count
+    config['hyper_params']['item_count'] = item_count
+    config['hyper_params']['genr_nfeat'] = genr_nfeat
+    config['hyper_params']['txt_nfeat'] = txt_nfeat
 
     log = main(config)
