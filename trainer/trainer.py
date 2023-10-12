@@ -62,7 +62,7 @@ class Trainer(BaseTrainer):
             trgs = np.append(trgs, y)
             
         for met in self.metric_ftns:
-            self.metrics.update(met.__name__, met(outs.reshape(-1,1), trgs.reshape(-1,1)))
+            self.metrics.update(met.__name__, met(trgs.reshape(-1,1), outs.reshape(-1,1)))
                 
         log = self.metrics.result()         
         if self.do_validation:
@@ -91,7 +91,7 @@ class Trainer(BaseTrainer):
                 
                 
         for met in self.metric_ftns:
-            self.metrics.update(met.__name__, met(outs.reshape(-1,1), trgs.reshape(-1,1)))
+            self.metrics.update(met.__name__, met(trgs.reshape(-1,1), outs.reshape(-1,1)))
                 
         log = self.metrics.result()
             
