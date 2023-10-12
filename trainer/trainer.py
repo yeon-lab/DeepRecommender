@@ -15,11 +15,13 @@ class Trainer(BaseTrainer):
                       config,
                       train_set,
                       valid_set,
-                      test_set):
+                      test_set,
+                      y_scaler):
         super().__init__(model, metric_ftns, optimizer, config)
         self.config = config
         self.batch_size = config['data_loader']['batch_size']
         self.criterion = criterion
+        self.y_scaler = y_scaler
                           
         self.train_set = train_set
         self.valid_set = valid_set
@@ -54,9 +56,10 @@ class Trainer(BaseTrainer):
                     self._progress(idx),
                     loss.item(),
                 ))
-                            
-            outs = np.append(outs, output.numpy())
-            trgs = np.append(trgs, y.data.cpu().numpy())
+            output = self.y_scaler.inverse_transform(output.cpu().detach().numpy())
+            y = self.y_scaler.inverse_transform(y.cpu().detach().numpy())
+            outs = np.append(outs, output)
+            trgs = np.append(trgs, y)
             
         for met in self.metric_ftns:
             self.metrics.update(met.__name__, met(outs.reshape(-1,1), trgs.reshape(-1,1)))
@@ -79,9 +82,12 @@ class Trainer(BaseTrainer):
                 loss = self.criterion(output, y, self.device)
                 loss.backward()
                 self.optimizer.step()
-                self.metrics.update('loss', loss.item())    
-                outs = np.append(outs, output.numpy())
-                trgs = np.append(trgs, y.data.cpu().numpy())
+                self.metrics.update('loss', loss.item())  
+                
+                output = self.y_scaler.inverse_transform(output.cpu().detach().numpy())
+                y = self.y_scaler.inverse_transform(y.cpu().detach().numpy())
+                outs = np.append(outs, output)
+                trgs = np.append(trgs, y)
                 
                 
         for met in self.metric_ftns:
