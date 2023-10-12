@@ -3,7 +3,7 @@ import model.metric as module_metric
 import model.loss as module_loss
 from model.DeepRec import Rec_Model
 from trainer.trainer import Trainer
-from utils import Load_split_dataset
+from utils.util import preprocessing
 from utils.parse_config import ConfigParser
 import torch
 
@@ -15,7 +15,7 @@ torch.backends.cudnn.benchmark = False
 
 def main(config):
     # load datasets
-        
+    train_set, valid_set, test_set, y_scaler, config = preprocessing(config.path, config)
     # build model architecture, initialize weights, then print to console    
     model = Rec_Model(config['hyper_params'])
     #model.weights_init()  
@@ -39,8 +39,8 @@ def main(config):
                       config,
                       train_set,
                       valid_set,
-                      test_set)
-
+                      test_set,
+                      y_scaler)
     log = trainer.train()
     return log
 
@@ -52,14 +52,7 @@ if __name__ == '__main__':
                       help='path to latest checkpoint (default: None)')
     args.add_argument('-d', '--device', default="0", type=str,
                       help='indices of GPUs to enable (default: all)')
-    args.add_argument('--data', type=str)
-    params = args.parse_args()
+    args.add_argument('--path', type=str)
     
     config = ConfigParser.from_args(args)
-    config, train_set, valid_set, test_set = Load_split_dataset(config)
-    config['hyper_params']['user_count'] = user_count
-    config['hyper_params']['item_count'] = item_count
-    config['hyper_params']['genr_nfeat'] = genr_nfeat
-    config['hyper_params']['txt_nfeat'] = txt_nfeat
-
     log = main(config)
