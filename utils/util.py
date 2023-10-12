@@ -6,9 +6,7 @@ import pandas as pd
 import os
 import numpy as np
 from glob import glob
-import math
-from utils.base import load_data, transform_category
-from sklearn.preprocessing import StandardScaler,MinMaxScaler
+from utils.base import load_data, transform_category, sample, data_split
 
 SEED = 123
 np.random.seed(SEED)
@@ -68,61 +66,6 @@ def preprocessing(path, config):
     config['hyper_params']['genr_nfeat'] = len(item_gen[0])
     config['hyper_params']['txt_nfeat'] = len(item_txt[0])
     return train_loader, valid_loader, test_loader, y_scaler, config
-
-def sample(data,user,item,genre,txt):
-    user_,item_,genre_,txt_ = [],[],[],[]    
-    for i in range(len(data)):
-        UserID = data.iloc[i,:]['UserID']
-        MovieID = data.iloc[i,:]['MovieID']
-        user_.append(list(user[user['UserID']== UserID].drop(['UserID'], axis='columns').iloc[0,:]))
-        item_.append(list(item[item['MovieID'] == MovieID].drop(['MovieID'], axis='columns').iloc[0,:]))
-        genre_.append(list(genre[genre['MovieID'] == MovieID].drop(['MovieID'], axis='columns').iloc[0,:]))
-        txt_.append(list(txt[txt['MovieID'] == MovieID].drop(['MovieID'], axis='columns').iloc[0,:]))
-            
-    user_   = np.array(user_).reshape(len(data),-1)
-    item_   = np.array(item_).reshape(len(data),-1)
-    genre_  = np.array(genre_).reshape(len(data),-1)
-    txt_    = np.array(txt_).reshape(len(data),-1)            
-    
-    return user_, item_, genre_, txt_
-
-
-
-def data_split(user_ctg, item_ctg, item_gen, item_txt, label, batch_size):    
-    indices = np.random.permutation(np.arange(len(ratings)))
-    train_idx = indices[:81000]
-    test_idx = indices[81000:91000]
-    valid_idx = indices[91000:]
-    
-    label    = np.array(label)
-    item_txt = np.array(item_txt)
-    
-    y_scaler = MinMaxScaler()
-    y_scaler.fit(np.array(label[train_idx].reshape(-1,1)))
-    label   = y_scaler.transform(label.reshape(-1,1))  
-    
-    txt_scaler = StandardScaler()
-    txt_scaler.fit(np.array(item_txt[train_idx]))
-    item_txt = standard.transform(item_txt)
-
-    user_ctg    = torch.LongTensor(np.array(user_ctg))
-    item_ctg    = torch.LongTensor(np.array(item_ctg))
-    item_gen    = torch.FloatTensor(np.array(item_gen))
-    item_txt    = torch.FloatTensor(np.array(item_txt))
-    label       = torch.FloatTensor(np.array(label))
-
-    train = TensorDataset(user_ctg[train_idx], item_ctg[train_idx], 
-                          item_gen[train_idx],   item_txt[train_idx], label[train_idx])
-    test  = TensorDataset(user_ctg[test_idx], item_ctg[test_idx],
-                          item_gen[test_idx],   item_txt[test_idx], label[test_idx])        
-    valid  = TensorDataset(user_ctg[valid_idx], item_ctg[valid_idx],
-                          item_gen[valid_idx],   item_txt[valid_idx], label[valid_idx])       
-
-    train_load  = torch.utils.data.DataLoader(dataset= train,batch_size=batch_size,shuffle=False,drop_last=True) 
-    test_load   = torch.utils.data.DataLoader(dataset= test,batch_size=batch_size,shuffle=False,drop_last=True) 
-    valid_load   = torch.utils.data.DataLoader(dataset= valid,batch_size=batch_size,shuffle=False,drop_last=True) 
-    
-    return train_load, test_load, valid_load, y_scaler
 
 def ensure_dir(dirname):
     dirname = Path(dirname)
