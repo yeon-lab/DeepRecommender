@@ -1,24 +1,22 @@
-# Domain Invariant Representation Learning and Sleep Dynamics Modeling for Automatic Sleep Staging: A Deep Learning Framework
+# Deep Learning based Recommender System using Cross Convolutional Filters
 
 ## Introduction
-This repository contains source code for paper "**DREAM**: Domain Invariant and Contrastive Representation for Sleep Dynamics" (ICDM 2022).
+This repository contains source code for paper "Deep learning based recommender system using cross convolutional filters".
 
-Sleep staging has become a critical task in diagnosing and treating sleep disorders to prevent sleep-related diseases. With rapidly growing large-scale public sleep databases and advances in machine learning, significant progress has been made toward automatic sleep staging. However, previous studies face some critical problems in sleep studies: (1) the heterogeneity of subjects' physiological signals, (2) the inability to extract meaningful information from unlabeled sleep signal data to improve predictive performances, (3) the difficulty in modeling correlations between sleep stages, and (4) the lack of an effective mechanism to quantify predictive uncertainty.
+With the recent development of online transactions, recommender systems have increasingly attracted attention in various domains. The recommender system supports the users' decision-making by recommending items that are more likely to be preferred. Many studies in the field of deep learning-based recommender systems have attempted to capture the complex interactions between users' and items' features for accurate recommendation.
 
-In this paper, we propose a neural network-based model named **DREAM** that learns domain generalized representations from physiological signals and models sleep dynamics for automatic sleep staging. **DREAM** consists of (i) a feature representation network that learns sleep-related and subject-invariant  representations from diverse subjects’ sleep signal segments via VAE architecture and contrastive learning, and (ii) a sleep stage classification network that models sleep dynamics by capturing interactions between sleep segments and between sleep stages in the sequential context at both feature representation and label classification levels via Transformer and CRF models. Our experimental results indicate that **DREAM** significantly outperforms existing methods for automatic sleep staging on three sleep signal datasets. Further, **DREAM** provides an effective mechanism for quantifying uncertainty measures for its predictions, thereby helping sleep experts intervene in cases of highly uncertain predictions, resulting in better diagnoses and treatments for patients in real-world applications.
-
+In this paper, we propose a recommender system based on the convolutional neural network using the outer product matrix of features and cross-convolutional filters. The proposed method can deal with the various types of features and capture the meaningful higher-order interactions between users and items, giving greater weight to important features. Moreover, it can alleviate the overfitting problems since the proposed method includes the global average or max-pooling instead of the fully connected layers in the structure. Experiments showed that the proposed method performs better than the existing methods by capturing important interactions and alleviating the overfitting issue.
 
 
 
 ## DREAM
-![Figure2_org](https://user-images.githubusercontent.com/39074545/208546254-11d0bcb9-a573-43ab-9ef6-6039760112bc.png)
+![Figure2_org](https://github.com/yeon-lab/DeepRecommender/assets/39074545/6e836393-5c6f-4d47-8be7-90ebd8f73553)
 
 
-Figure 1: Overall architecture of **DREAM**
 
 ## Installation
 
-DREAM depends on Numpy, scikit-learn, PyTorch (CUDA toolkit if use GPU), TorchCRF, and pytorch_metric_learning. You must have them installed before using DREAM.
+Numpy, scikit-learn, and PyTorch (CUDA toolkit if use GPU)
 
 
 
@@ -26,21 +24,15 @@ DREAM depends on Numpy, scikit-learn, PyTorch (CUDA toolkit if use GPU), TorchCR
 
 ### Training and test
 ```python 
-python train.py --fold_id=0 --np_data_dir "data_npz/edf_20_fpzcz" --config "config.json"
 ```
 
 ### Hyper-parameters
 Hyper-parameters are set in config.json
 >
-* `seq_len`: Length of input sequence for classification network
-* `n_layers`: the number of encoder layers in Transformer
-* `num_folds`: the number of folds for k-fold cross-validation
+* `nhid`: a list of the number of hidden channels in convolutional layers. E.g., [32, 64, 128]
+* `pool`: a type of global fooling, {'avg','max'}.
+* `emb`: embedding dimension.
 * `early_stop`: the number of epochs for early stopping
 * `monitor`: the criterian for early stopping. The first word is 'min' or 'max', the second one is metric.
-* `const_weight`: a weight to control constrastive loss
-* `dim_feedforward`: the dimension of the feedforward network model in Transformer encoder layer
-* `beta_d and beta_y`: weights to control KL losses for subject and class, respectively
-* `zd_dim and zy_dim`: output dimensions of subject and class encoders, respectively
-* `aux_loss_d and aux_loss_y`: weights to control auxiliary losses for subject and class, respectively
 
 
