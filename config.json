@@ -1,24 +1,9 @@
 {
-    "name": "DREAM_edf_78",
     "n_gpu": 1,
-    "arch": {
-        "type": "DREAM",
-        "args": {}
-    },
     "hyper_params": {
-        "seq_len": 10,
-        "num_classes": 5,
-        "zd_dim": 64,
-        "zy_dim": 256,
-        "dim_feedforward":128,
-        "n_layers": 4,
-        "aux_loss_y": 3500,
-        "aux_loss_d": 10500,
-        "beta_d": 1,
-        "beta_x": 1,
-        "beta_y": 1,
-        "const_weight": 20000,
-        "warmup": 10
+        "nhid": [32,54,128],
+        "emb": 5,
+        "pool": "avg"
     },
     "data_loader": {
         "args": {
@@ -27,25 +12,21 @@
         }
     },
     "optimizer": {
-        "type": "Adam",
+        "type": "SGD",
         "args": {
             "lr": 0.001,
             "weight_decay": 0,
             "amsgrad": false
         }
     },
-    "loss": "CrossEntropyLoss",
-    "metrics": [
-        "accuracy",
-        "f1",
-        "confusion"
-    ],
+    "loss": "MSELoss",
+    "metrics": ["RMSE","MAE"],
     "trainer": {
-        "epochs": 100,
+        "epochs": 5000,
         "save_dir": "saved/",
-        "save_period": 10,
+        "save_period": 30,
         "verbosity": 2,
-        "monitor": "max val_accuracy",
-        "early_stop": 10
+        "monitor": "min val_loss",
+        "early_stop": 30
     }
 }
