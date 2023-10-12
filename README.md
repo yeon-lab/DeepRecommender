@@ -9,7 +9,7 @@ In this paper, we propose a recommender system based on the convolutional neural
 
 
 
-## DREAM
+## Model
 ![Figure2_org](https://github.com/yeon-lab/DeepRecommender/assets/39074545/6e836393-5c6f-4d47-8be7-90ebd8f73553)
 
 
