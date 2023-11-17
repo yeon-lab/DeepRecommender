@@ -1,7 +1,7 @@
 # Deep Learning based Recommender System using Cross Convolutional Filters
 
 ## Introduction
-This repository contains source code for paper "[Deep learning based recommender system using cross convolutional filters](https://www.sciencedirect.com/science/article/pii/S0020025522000561)", *Information Sciences*.
+This repository contains source code for paper "[Deep learning based recommender system using cross convolutional filters](https://www.sciencedirect.com/science/article/pii/S0020025522000561)", *Information Sciences, 2022*.
 
 With the recent development of online transactions, recommender systems have increasingly attracted attention in various domains. The recommender system supports the users' decision-making by recommending items that are more likely to be preferred. Many studies in the field of deep learning-based recommender systems have attempted to capture the complex interactions between users' and items' features for accurate recommendation. In this paper, we propose a recommender system based on the convolutional neural network using the outer product matrix of features and cross-convolutional filters. The proposed method can deal with the various types of features and capture the meaningful higher-order interactions between users and items, giving greater weight to important features. Moreover, it can alleviate the overfitting problems since the proposed method includes the global average or max-pooling instead of the fully connected layers in the structure. Experiments showed that the proposed method performs better than the existing methods by capturing important interactions and alleviating the overfitting issue.
 
